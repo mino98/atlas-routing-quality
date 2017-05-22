@@ -225,8 +225,8 @@ class send_measures_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='atlas',
-            password='ULmm0F6ZS7NZa4d1'
+            user='...',
+            password='...'
         )
         logger.debug("Thread send_measures_thread started")
 
@@ -305,8 +305,8 @@ class fetch_results_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='atlas',
-            password='ULmm0F6ZS7NZa4d1'
+            user='...',
+            password='...'
         )
         logger.debug("Thread fetch_results_thread started")
 
