@@ -245,7 +245,7 @@ class send_measures_thread(threading.Thread):
             self.cur2.execute('SELECT COUNT(*) FROM measurements WHERE state="REQUESTED"')
             num = self.cur2.fetchone()[0]
             self.cur2.close()
-            while num > 9950:
+            while num > 95:
                 logger.debug("Ongoing measurements: {}, WAITING!".format(num))
                 time.sleep(5)
                 self.cur2 = self.sql.cursor()
