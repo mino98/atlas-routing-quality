@@ -30,6 +30,8 @@ In this example:
 * Use `--public` to make all measurements public
 * The last parameter (`100`) is the number of probes to pick in the random set
 * You can add something like `--country IT` to pick only probes belonging to a single country
+* For extra debugging, add `--debug`
+* For silent output, add `--silent`
 
 If you want to keep an eye on the progress, you can do something like:
 ```bash
