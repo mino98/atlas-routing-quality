@@ -24,14 +24,14 @@ from datetime import datetime, timezone
 from ipaddress import ip_network, ip_address
 
 # Logger object
-logger = logging.getLogger("atlas-routing-quality")
+logger = logging.getLogger("get-measurements")
 
 # Database
 sql = mysql.connect(
         host='localhost',
         database='atlas',
-        user='...',
-        password='...'
+        user='atlas',
+        password='ULmm0F6ZS7NZa4d1'
     )
 
 def prepare_db(options):
@@ -111,6 +111,9 @@ def parse():
     g.add_argument("--ping-count", metavar="COUNT",
                    type=int, default=4,
                    help="number of ping requests for each probe")
+    g.add_argument("--packet-interval", metavar="INTERVAL",
+                   type=int, default=1000,
+                   help="time between packets in milliseconds")
 
     parser.add_argument("number", metavar="NUM", type=int,
                         help="Number of probes to request")
@@ -225,8 +228,8 @@ class send_measures_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='...',
-            password='...'
+            user='atlas',
+            password='ULmm0F6ZS7NZa4d1'
         )
         logger.debug("Thread send_measures_thread started")
 
@@ -245,7 +248,7 @@ class send_measures_thread(threading.Thread):
             self.cur2.execute('SELECT COUNT(*) FROM measurements WHERE state="REQUESTED"')
             num = self.cur2.fetchone()[0]
             self.cur2.close()
-            while num > 95:
+            while num > 9950:
                 logger.debug("Ongoing measurements: {}, WAITING!".format(num))
                 time.sleep(5)
                 self.cur2 = self.sql.cursor()
@@ -259,6 +262,7 @@ class send_measures_thread(threading.Thread):
                 af=options.family,
                 target=row[3],
                 packets=options.ping_count,
+                packet_interval=options.packet_interval,
                 is_public=options.public,
                 description="complete-ping-graph ping from {} to {}".format(row[0], row[2]))
             source = atlas.AtlasSource(type="probes",
@@ -305,8 +309,8 @@ class fetch_results_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='...',
-            password='...'
+            user='atlas',
+            password='ULmm0F6ZS7NZa4d1'
         )
         logger.debug("Thread fetch_results_thread started")
 
