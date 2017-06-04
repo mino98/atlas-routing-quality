@@ -24,14 +24,14 @@ from datetime import datetime, timezone
 from ipaddress import ip_network, ip_address
 
 # Logger object
-logger = logging.getLogger("get-measurements")
+logger = logging.getLogger("atlas-routing-quality")
 
 # Database
 sql = mysql.connect(
         host='localhost',
         database='atlas',
-        user='atlas',
-        password='ULmm0F6ZS7NZa4d1'
+        user='...',
+        password='...'
     )
 
 def prepare_db(options):
@@ -228,8 +228,8 @@ class send_measures_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='atlas',
-            password='ULmm0F6ZS7NZa4d1'
+            user='...',
+            password='...'
         )
         logger.debug("Thread send_measures_thread started")
 
@@ -248,7 +248,7 @@ class send_measures_thread(threading.Thread):
             self.cur2.execute('SELECT COUNT(*) FROM measurements WHERE state="REQUESTED"')
             num = self.cur2.fetchone()[0]
             self.cur2.close()
-            while num > 9950:
+            while num > 95:
                 logger.debug("Ongoing measurements: {}, WAITING!".format(num))
                 time.sleep(5)
                 self.cur2 = self.sql.cursor()
@@ -309,8 +309,8 @@ class fetch_results_thread(threading.Thread):
         self.sql = mysql.connect(
             host='localhost',
             database='atlas',
-            user='atlas',
-            password='ULmm0F6ZS7NZa4d1'
+            user='...',
+            password='...'
         )
         logger.debug("Thread fetch_results_thread started")
 
