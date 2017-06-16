@@ -20,11 +20,11 @@ import statistics
 import threading
 import MySQLdb as mysql
 import ripe.atlas.cousteau as atlas
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from ipaddress import ip_network, ip_address
 
 # Logger object
-logger = logging.getLogger("atlas-routing-quality")
+logger = logging.getLogger("get-measurements")
 
 # Database
 sql = mysql.connect(
@@ -94,10 +94,12 @@ def parse():
 
     g = parser.add_argument_group("Probe selection")
     g.add_argument("--country", metavar="COUNTRY",
-                   help="Country code of probes")
+                   help="Country code of probes (comma-separated list of ISO-3166-1 codes)")
     g.add_argument("--family", metavar="FAMILY",
                    choices=(4, 6), default=4,
                    help="IP family of probes (4 or 6)", type=int)
+    g.add_argument("--anchor", action="store_true",
+                   help="Use Atlas anchors instead of probes")
 
     g = parser.add_argument_group("Atlas API")
     g.add_argument("--api-create-key", metavar="KEY",
@@ -111,9 +113,19 @@ def parse():
     g.add_argument("--ping-count", metavar="COUNT",
                    type=int, default=4,
                    help="number of ping requests for each probe")
-    g.add_argument("--packet-interval", metavar="INTERVAL",
+    g.add_argument("--packet-interval", metavar="PACKET-INTERVAL",
                    type=int, default=1000,
-                   help="time between packets in milliseconds")
+                   help="time between successive packets of a given ping (in milliseconds)")
+    g.add_argument("--sample-interval", metavar="SAMPLE-INTERVAL",
+                   type=int, default=300,
+                   help="time between successive measurements from a given probe (in seconds)")
+
+    g.add_argument("--start-delay", metavar="START-DELAY",
+                   type=int, default=60,
+                   help="measurements will start after this amount (in minutes)")
+    g.add_argument("--period", metavar="PERIOD",
+                   type=int, default=60,
+                   help="measurement will run for this amount of time (in minutes)")
 
     parser.add_argument("number", metavar="NUM", type=int,
                         help="Number of probes to request")
@@ -124,11 +136,14 @@ def get_probes(options):
     """Return a list of probes matching the provided options. 
     Note that we only pick probes that have been stable for 30 days."""    
     filters = {"tags": "system-ipv{}-works,system-ipv{}-stable-30d".format(options.family, options.family),
-               "status": 1,
+               "status_name": "Connected",
                "is_public": "true"}
 
-    if options.country:
-        filters["country_code"] = options.country.upper()
+    if options.anchor:
+        filters["is_anchor"] = "true"
+
+    if options.country: 
+        filters["country_code__in"] = options.country.upper()
 
     logger.info("Fetch list of probes (v{}, C: {})".format(
         options.family, 
@@ -260,21 +275,25 @@ class send_measures_thread(threading.Thread):
 
             measurement = atlas.Ping(
                 af=options.family,
-                target=row[3],
+                target=row[3], 
                 packets=options.ping_count,
+                interval=options.sample_interval, 
                 packet_interval=options.packet_interval,
                 is_public=options.public,
                 description="complete-ping-graph ping from {} to {}".format(row[0], row[2]))
+            
             source = atlas.AtlasSource(type="probes",
                                        requested=1,
                                        value=row[0])
-            # start_time = datetime(2017, 5, 12, 16, 0, 0, 0, tzinfo=timezone.utc)
-            # request = atlas.AtlasCreateRequest(start_time=start_time,
-            request = atlas.AtlasCreateRequest(start_time=datetime.utcnow(),
+            
+            start_time = datetime.now(timezone.utc) + timedelta(minutes = options.start_delay)
+            stop_time = start_time + timedelta(minutes = options.period)
+
+            request = atlas.AtlasCreateRequest(start_time=start_time,
+                                               stop_time=stop_time,
                                                key=options.api_create_key,
                                                sources=[source],
-                                               measurements=[measurement],
-                                               is_oneoff=True)
+                                               measurements=[measurement])
 
             (success, response) = request.create()
             if success:
@@ -337,7 +356,8 @@ class fetch_results_thread(threading.Thread):
                     logger.debug("Current state for {}: {}".format(msm, measurement.status))
                     if (measurement.status == "Stopped" or
                         measurement.status == "Failed" or
-                        measurement.status == "No suitable probes"):
+                        measurement.status == "No suitable probes" or 
+                        measurement.status == "Scheduling denied"):
                         break
                     count += 1
                     if count % 10 == 0:
@@ -347,7 +367,8 @@ class fetch_results_thread(threading.Thread):
                     time.sleep(5)
 
                 if (measurement.status == "Failed" or
-                    measurement.status == "No suitable probes"):
+                    measurement.status == "No suitable probes" or
+                    measurement.status == "Scheduling denied"):
                         logger.error("Measurement from {} failed".format(msm))
                         self.cur2 = self.sql.cursor()
                         self.cur2.execute('''

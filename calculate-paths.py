@@ -10,7 +10,7 @@ import collections
 from functools import lru_cache
 
 # Logger object
-logger = logging.getLogger("atlas-routing-quality")
+logger = logging.getLogger("calculate-paths")
 
 # Database
 sql = mysql.connect(
@@ -63,19 +63,26 @@ def parse():
     return parser.parse_args()
 
 @lru_cache(maxsize=None)
-def get_segment_latency(a, b):
+def get_segment_latency(a, b, try_reverse=False):
     """Returns the latency between the probes 'a' and 'b'.
-    We use memoization for this function to speed up the computation."""
+    If 'try_reverse' is True, it will return latency b->a if the measurement
+    a->b is unavailable.
+
+    Note: this function uses memoization for this function to speed up 
+    the computation."""
     cur = sql.cursor()
     cur.execute("""SELECT min 
         FROM measurements
         WHERE
-            from_id IN (%s, %s) 
-            AND to_id IN (%s, %s)""", (a, b, a, b))
+            from_id = %s 
+            AND to_id = %s""", (a, b))
     row = cur.fetchone()
     cur.close()
     if row is None or row[0] is None: 
-        return None
+        if(try_reverse):
+            return get_segment_latency(b, a, try_reverse=False)
+        else:
+            return None
     return row[0]
 
 def calculate_results_h1():
@@ -94,7 +101,7 @@ def calculate_results_h1():
 
             logger.debug("1-hop path {}->{}".format(src, dst))
                 
-            latency = get_segment_latency(src, dst)
+            latency = get_segment_latency(src, dst, try_reverse=True)
             if latency is None: continue
             
             logger.debug("{}->{}: {}".format(src, dst, latency))
@@ -144,11 +151,11 @@ def calculate_results_h2():
                 hop1 = k[0]
                 if hop1 == src or hop1 == dst: continue 
                 
-                segment_lat = get_segment_latency(src, hop1)
+                segment_lat = get_segment_latency(src, hop1, try_reverse=True)
                 if segment_lat is None: continue
                 latency = segment_lat
 
-                segment_lat = get_segment_latency(hop1, dst)
+                segment_lat = get_segment_latency(hop1, dst, try_reverse=True)
                 if segment_lat is None: continue
                 latency = latency + segment_lat
 
@@ -160,7 +167,7 @@ def calculate_results_h2():
                     solved_paths[src][dst]['h2'] = latency
                     solved_paths[src][dst]['hop1'] = hop1
                     cur2 = sql.cursor()
-                    cur2.execute('''UPDATE results 
+                    cur2.execute('''UPDATE results
                         SET h2 = %s, 
                         h2_path = '{"extra-hops": [%s]}' 
                         WHERE from_id = %s 
@@ -195,7 +202,7 @@ def calculate_results_h3():
             # if so, reuse that result:
             if solved_paths[dst][src]['h3']:
                 cur2 = sql.cursor()
-                cur2.execute('''UPDATE results 
+                cur2.execute('''UPDATE results
                     SET h3 = %s, 
                     h3_path = '{"extra-hops": [%s, %s]}' 
                     WHERE from_id = %s AND to_id = %s''',
@@ -216,15 +223,15 @@ def calculate_results_h3():
                     hop2 = l[0]
                     if hop2 == src or hop2 == hop1 or hop2 == dst: continue 
 
-                    segment_lat = get_segment_latency(src, hop1)
+                    segment_lat = get_segment_latency(src, hop1, try_reverse=True)
                     if segment_lat is None: continue
                     latency = segment_lat
 
-                    segment_lat = get_segment_latency(hop1, hop2)
+                    segment_lat = get_segment_latency(hop1, hop2, try_reverse=True)
                     if segment_lat is None: continue
                     latency = latency + segment_lat
 
-                    segment_lat = get_segment_latency(hop2, dst)
+                    segment_lat = get_segment_latency(hop2, dst, try_reverse=True)
                     if segment_lat is None: continue
                     latency = latency + segment_lat
                     
@@ -298,19 +305,19 @@ def calculate_results_h4():
                         hop3 = m[0]
                         if hop3 == src or hop3 == hop1 or hop3 == hop2 or hop3 == dst: continue 
 
-                        segment_lat = get_segment_latency(src, hop1)
+                        segment_lat = get_segment_latency(src, hop1, try_reverse=True)
                         if segment_lat is None: continue
                         latency = segment_lat
 
-                        segment_lat = get_segment_latency(hop1, hop2)
+                        segment_lat = get_segment_latency(hop1, hop2, try_reverse=True)
                         if segment_lat is None: continue
                         latency = latency + segment_lat
 
-                        segment_lat = get_segment_latency(hop2, hop3)
+                        segment_lat = get_segment_latency(hop2, hop3, try_reverse=True)
                         if segment_lat is None: continue
                         latency = latency + segment_lat
 
-                        segment_lat = get_segment_latency(hop3, dst)
+                        segment_lat = get_segment_latency(hop3, dst, try_reverse=True)
                         if segment_lat is None: continue
                         latency = latency + segment_lat
 
@@ -324,7 +331,7 @@ def calculate_results_h4():
                             solved_paths[src][dst]['hop2'] = hop2
                             solved_paths[src][dst]['hop3'] = hop3
                             cur2 = sql.cursor()
-                            cur2.execute('''UPDATE results 
+                            cur2.execute('''UPDATE results
                                 SET h4 = %s, 
                                 h4_path = '{"extra-hops": [%s, %s, %s]}' 
                                 WHERE from_id = %s 
