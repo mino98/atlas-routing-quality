@@ -58,10 +58,10 @@ def get_segment_latency(a, b, try_reverse=False):
 
 def export_probe_list():
     """Export a file with the details of the probes"""
-    fp = open("ww_4_probes.csv",'w')
+    fp = open("probes.csv",'w')
 
     cur1 = sql.cursor()
-    cur1.execute("""SELECT id, address, af, asn, address
+    cur1.execute("""SELECT id, address, af, asn
                     FROM probes 
                     WHERE id NOT IN (
                       SELECT DISTINCT from_id 
@@ -76,7 +76,7 @@ def export_probe_list():
 
 def export_matrix():
     """Export a file with a table of all origin-destination pairs"""
-    fp = open("ww_4_matrix.csv",'w')
+    fp = open("matrix.csv",'w')
 
     cur1 = sql.cursor()
     cur1.execute("""SELECT id 
@@ -106,7 +106,7 @@ def export_matrix():
 
 def export_notes():
     """Exports a file with a bunch of notes about this measurement"""
-    fp = open("ww_4_notes.txt",'w')
+    fp = open("notes.txt",'w')
     fp.write("Measurements notes:\n")
 
     # Matrix size:
