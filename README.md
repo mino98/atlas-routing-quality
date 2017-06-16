@@ -33,14 +33,39 @@ In this example:
 * For extra debugging, add `--debug`
 * For silent output, add `--silent`
 
-If you want to keep an eye on the progress, you can do something like:
+To get the full set of options available, do:
+```bash
+python3 get-measurements.py --help
+```
+
+A more convoluted example could be as follows: 
+* select 100 Atlas Anchors in a bunch of European Countries
+* for an hour (starting 60 minutes from now, so the script has enough time to request all measurements), every 5 minutes we send a train of 6 ping
+* pings in each train are separated by 5 seconds
+* log everything in `get-measurements.log`, because you never know
+```bash
+python3 get-measurements.py \
+  --debug \
+  --api-create-key XXX-XXX-XXXXXX \
+  --country "AT,BE,BG,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,GB" \
+  --family 4 \
+  --ping-count 6 \
+  --packet-interval 5000 \
+  --sample-interval 300 \
+  --start-delay 60 \
+  --period 60 \
+  --public \
+  100 2>&1 | tee get-measurements.log
+```
+
+If you want to keep an eye on the progress, I suggest you create a script like:
 ```bash
 while [ 1 ]
 do
   clear
-  mysql -uatlas -pXXXX atlas -e " \
+  mysql -uXXXX -pXXXX atlas -e " \
      SELECT state, COUNT(*) AS total
-     FROM measurements${1}
+     FROM measurements
      GROUP BY state" 2> /dev/null
   sleep 1
 done
@@ -52,11 +77,20 @@ Once you have collected all the results, start this script to calculate all the 
 python3 calculate-paths.py
 ```
 
+### Exporting results
+You can use this script to export your results to three files:
+* `probes.csv` is a CSV table of the probes ID, IP address, IP address family and ASN
+* `matrix.csv` is a CSV table representing a 2D matrix of the latency between each pair of probes.
+* `notes.txt` with a bunch of useful metadata for your measurements
+```bash
+python3 export-results.py
+```
+
 ### Working with results
 Once you get the results, you can study them with SQL queries like:
 ```SQL
 -- Count for how many paths the 2-hop path has lower latency than the direct path:
-SELECT count(*) FROM results WHERE h2<h1;
+SELECT count(*) FROM results WHERE h2 <= h1;
 ```
 
 Keep in mind that `get-measurements.py` drops (!!) all tables without warning when invoked. So, you should save the results of previous measurements by renaming those tables, such as:
@@ -67,8 +101,8 @@ mysql -uatlas -pXXXX atlas -e "RENAME TABLE probes TO probes_${NEW_NAME};"
 mysql -uatlas -pXXXX atlas -e "RENAME TABLE results TO results_${NEW_NAME};"
 ```
 
-If you want to export the results in CSV, for example to study them in Excel or in a Jupyter notebook with Pandas, do something like: 
+If you just want to export the results in CSV, for example to study them in Excel or in a Jupyter notebook with Pandas, do something like: 
 ```bash
 NAME='gb_1'
-echo "SELECT * FROM results_${1}" | mysql -B -uatlas -pXXXX atlas | sed -e 's/\t/,/g' > ${1}.csv
+echo "SELECT * FROM results_${1}" | mysql -B -uXXXX -pXXXX atlas | sed -e 's/\t/,/g' > ${1}.csv
 ```
