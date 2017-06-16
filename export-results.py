@@ -43,10 +43,10 @@ def get_segment_latency(a, b, try_reverse=False):
     the computation."""
     cur = sql.cursor()
     cur.execute("""SELECT min 
-        FROM measurements
-        WHERE
-            from_id = %s 
-            AND to_id = %s""", (a, b))
+                   FROM measurements
+                   WHERE
+                       from_id = %s 
+                       AND to_id = %s""", (a, b))
     row = cur.fetchone()
     cur.close()
     if row is None or row[0] is None: 
@@ -89,6 +89,7 @@ def export_matrix():
     probes = cur1.fetchall()
     cur1.close()    
     for i in probes:
+        row = []
         src = i[0]
 
         for j in probes:
@@ -100,14 +101,14 @@ def export_matrix():
                 if latency is None:
                     raise ValueError("Invalid latency between %d and %d" % (src, dst))
             
-            fp.write(str(latency) + ",")
-        fp.write("\n") 
+            row.append(latency)
+        fp.write(','.join([str(item) for item in row]) + "\n") 
     fp.close()
 
 def export_notes():
     """Exports a file with a bunch of notes about this measurement"""
     fp = open("notes.txt",'w')
-    fp.write("Measurements notes:\n")
+    fp.write("measurements notes:\n")
 
     # Matrix size:
     cur = sql.cursor()
@@ -193,7 +194,7 @@ if __name__ == "__main__":
         logger.info("Exporting measurements matrix")
         export_matrix()
 
-        logger.info("Generating notes")
+        logger.info("Exporting notes")
         export_notes()
 
         logger.info("All done")
