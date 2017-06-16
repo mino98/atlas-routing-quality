@@ -55,6 +55,7 @@ python3 get-measurements.py \
   --start-delay 60 \
   --period 60 \
   --public \
+  --anchor \
   100 2>&1 | tee get-measurements.log
 ```
 
